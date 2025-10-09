@@ -59,7 +59,7 @@ var RunCmd = &cobra.Command{
 
 		daAPI := newNamespaceMigrationDAAPI(daJrpc.DA, nodeConfig, migrations)
 
-		datastore, err := store.NewDefaultKVStore(nodeConfig.RootDir, nodeConfig.DBPath, "evm-single")
+		datastore, err := store.NewDefaultKVStore(nodeConfig.RootDir, nodeConfig.DBPath, "eden-testnet")
 		if err != nil {
 			return err
 		}

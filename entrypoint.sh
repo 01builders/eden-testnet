@@ -5,7 +5,7 @@ sleep 5
 
 # Function to extract --home value from arguments
 get_home_dir() {
-  home_dir="$HOME/.evm-single"
+  home_dir="$HOME/.eden-testnet"
 
   # Parse arguments to find --home
   while [ $# -gt 0 ]; do
@@ -40,7 +40,7 @@ if [ ! -f "$CONFIG_HOME/config/node_key.json" ]; then
     init_flags="$init_flags --rollkit.node.aggregator=true --rollkit.signer.passphrase $EVM_SIGNER_PASSPHRASE"
   fi
 
-  INIT_COMMAND="evm-single init $init_flags"
+  INIT_COMMAND="eden-testnet init $init_flags"
   echo "Create default config with command:"
   echo "$INIT_COMMAND"
   $INIT_COMMAND
@@ -90,18 +90,18 @@ fi
 
 # If no arguments passed, show help
 if [ $# -eq 0 ]; then
-  exec evm-single
+  exec eden-testnet
 fi
 
 # If first argument is "start", apply default flags
 if [ "$1" = "start" ]; then
   shift
-  START_COMMAND="evm-single start $default_flags"
+  START_COMMAND="eden-testnet start $default_flags"
   echo "Create default config with command:"
   echo "$START_COMMAND \"$@\""
   exec $START_COMMAND "$@"
 
 else
   # For any other command/subcommand, pass through directly
-  exec evm-single "$@"
+  exec eden-testnet "$@"
 fi
