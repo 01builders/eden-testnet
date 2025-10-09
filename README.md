@@ -11,10 +11,6 @@ It adds the following features:
 - Changed default app home directory to `~/.eden-testnet`
 - Changed command name to `eden-testnet`
 
-It removed the following features:
-
-- Deleted rollback command until https://github.com/celestiaorg/go-header/pull/347 is stable and merged.
-
 ## Considerations
 
 While syncing from DA only, with the Eden testnet, you will experience a stale block sync at height **`2403026`**.
