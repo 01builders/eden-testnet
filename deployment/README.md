@@ -89,8 +89,8 @@ docker compose down
 
 Download the database archives and extract them to replace the `ev-node` and `ev-reth` databases.
 
-- [ev-node database snapshot](https://fsn1.your-objectstorage.com/prd-snapshots/testnet/ev-node-fullnode-data.251009.tar.xz?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Checksum-Mode=ENABLED&X-Amz-Credential=P25AT1R51TL9QXV14L0O%2F20251009%2Ffsn1%2Fs3%2Faws4_request&X-Amz-Date=20251009T151322Z&X-Amz-Expires=600&X-Amz-SignedHeaders=host&x-id=GetObject&X-Amz-Signature=dc2ac6426b435e6028d208a4a1a6c1f37992114c0a14b7fa4f33445e281bc6a8)
-- [ev-reth database snapshot](https://fsn1.your-objectstorage.com/prd-snapshots/testnet/ev-reth-fullnode-data.251009.tar.xz?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Checksum-Mode=ENABLED&X-Amz-Credential=P25AT1R51TL9QXV14L0O%2F20251009%2Ffsn1%2Fs3%2Faws4_request&X-Amz-Date=20251009T151433Z&X-Amz-Expires=600&X-Amz-SignedHeaders=host&x-id=GetObject&X-Amz-Signature=4a956ccffeb520e2c1a1068f54d6a1b8c9072a1a5287ba447e0e454b2663359d)
+- [ev-node database snapshot](https://prd-snapshots.fsn1.your-objectstorage.com/testnet/ev-node-fullnode-data.251009.tar.xz)
+- [ev-reth database snapshot](https://prd-snapshots.fsn1.your-objectstorage.com/testnet/ev-reth-fullnode-data.251009.tar.xz)
 
 **Note:** Ensure the extracted data replaces the existing database directories for both `ev-node` and `ev-reth`.
 
