@@ -259,8 +259,8 @@ github.com/ethereum/go-ethereum v1.16.4 h1:H6dU0r2p/amA7cYg6zyG9Nt2JrKKH6oX2utfc
 github.com/ethereum/go-ethereum v1.16.4/go.mod h1:P7551slMFbjn2zOQaKrJShZVN/d8bGxp4/I6yZVlb5w=
 github.com/ethereum/go-verkle v0.2.2 h1:I2W0WjnrFUIzzVPwm8ykY+7pL2d4VhlsePn4j7cnFk8=
 github.com/ethereum/go-verkle v0.2.2/go.mod h1:M3b90YRnzqKyyzBEWJGqj8Qff4IDeXnzFw0P9bFw3uk=
-github.com/evstack/ev-node v1.0.0-beta.6.0.20251008193305-05124cc3a34a h1:v4JxPL+foGnQUuRN1v1R78uCH8x27U0EN72/kqZCSzk=
-github.com/evstack/ev-node v1.0.0-beta.6.0.20251008193305-05124cc3a34a/go.mod h1:ZBPhcwYpIyQ8XoI3POAJ/aG5UBV/WMpfHZFF4gUJDok=
+github.com/evstack/ev-node v1.0.0-beta.7 h1:gQOygA4l7VUbO84MuuMo6E9zP0Cn/Afuwq1K9Ng2z8Q=
+github.com/evstack/ev-node v1.0.0-beta.7/go.mod h1:ZBPhcwYpIyQ8XoI3POAJ/aG5UBV/WMpfHZFF4gUJDok=
 github.com/evstack/ev-node/core v1.0.0-beta.3 h1:01K2Ygm3puX4m2OBxvg/HDxu+he54jeNv+KDmpgujFc=
 github.com/evstack/ev-node/core v1.0.0-beta.3/go.mod h1:n2w/LhYQTPsi48m6lMj16YiIqsaQw6gxwjyJvR+B3sY=
 github.com/evstack/ev-node/da v1.0.0-beta.4 h1:6W+UsQrsEdBbAnyy8j+lYNo2VQvJUaoSNkToMFThtVU=

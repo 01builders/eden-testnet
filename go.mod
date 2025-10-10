@@ -7,7 +7,7 @@ replace github.com/celestiaorg/go-header => github.com/julienrbrt/go-header v0.0
 require (
 	github.com/celestiaorg/go-header v0.7.3
 	github.com/ethereum/go-ethereum v1.16.4
-	github.com/evstack/ev-node v1.0.0-beta.6.0.20251008193305-05124cc3a34a
+	github.com/evstack/ev-node v1.0.0-beta.7
 	github.com/evstack/ev-node/core v1.0.0-beta.3
 	github.com/evstack/ev-node/da v1.0.0-beta.4
 	github.com/evstack/ev-node/execution/evm v1.0.0-beta.2
