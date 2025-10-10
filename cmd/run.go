@@ -235,6 +235,149 @@ func (api *namespaceMigrationDAAPI) findNamespaceForHeight(height uint64, isData
 // GetIDs returns IDs of all Blobs located in DA at given height.
 // This method handles namespace migrations by determining the correct namespace based on height
 func (api *namespaceMigrationDAAPI) GetIDs(ctx context.Context, height uint64, ns []byte) (*da.GetIDsResult, error) {
-	ns = api.findNamespaceForHeight(height, bytes.Equal(ns, api.currentDataNamespace))
+	isDataNamespace := bytes.Equal(ns, api.currentDataNamespace)
+	ns = api.findNamespaceForHeight(height, isDataNamespace)
 	return api.API.GetIDs(ctx, height, ns)
+}
+
+// Get retrieves blobs by their IDs from the DA layer.
+// This method tries the provided namespace first, then falls back to historical namespaces
+// from migrations if the blob is not found.
+func (api *namespaceMigrationDAAPI) Get(ctx context.Context, ids []da.ID, ns []byte) ([]da.Blob, error) {
+	// Try with the provided namespace first
+	blobs, err := api.API.Get(ctx, ids, ns)
+	if err == nil {
+		return blobs, nil
+	}
+
+	// If no migrations, return the original error
+	if len(api.migrations) == 0 {
+		return nil, err
+	}
+
+	// Determine if we're looking for data or header namespace
+	isDataNamespace := bytes.Equal(ns, api.currentDataNamespace)
+
+	// Try each historical namespace from migrations
+	for _, migration := range api.migrations {
+		var historicalNS []byte
+		if isDataNamespace {
+			historicalNS = da.NamespaceFromString(migration.GetDataNamespace()).Bytes()
+		} else {
+			historicalNS = da.NamespaceFromString(migration.GetNamespace()).Bytes()
+		}
+
+		// Skip if this is the same as what we already tried
+		if bytes.Equal(historicalNS, ns) {
+			continue
+		}
+
+		blobs, err = api.API.Get(ctx, ids, historicalNS)
+		if err == nil {
+			return blobs, nil
+		}
+	}
+
+	// Return the last error if nothing worked
+	return nil, err
+}
+
+// GetProofs retrieves proofs for blobs by their IDs.
+// This method tries the provided namespace first, then falls back to historical namespaces.
+func (api *namespaceMigrationDAAPI) GetProofs(ctx context.Context, ids []da.ID, ns []byte) ([]da.Proof, error) {
+	// Try with the provided namespace first
+	proofs, err := api.API.GetProofs(ctx, ids, ns)
+	if err == nil {
+		return proofs, nil
+	}
+
+	// If no migrations, return the original error
+	if len(api.migrations) == 0 {
+		return nil, err
+	}
+
+	// Determine if we're looking for data or header namespace
+	isDataNamespace := bytes.Equal(ns, api.currentDataNamespace)
+
+	// Try each historical namespace from migrations
+	for _, migration := range api.migrations {
+		var historicalNS []byte
+		if isDataNamespace {
+			historicalNS = da.NamespaceFromString(migration.GetDataNamespace()).Bytes()
+		} else {
+			historicalNS = da.NamespaceFromString(migration.GetNamespace()).Bytes()
+		}
+
+		// Skip if this is the same as what we already tried
+		if bytes.Equal(historicalNS, ns) {
+			continue
+		}
+
+		proofs, err = api.API.GetProofs(ctx, ids, historicalNS)
+		if err == nil {
+			return proofs, nil
+		}
+	}
+
+	// Return the last error if nothing worked
+	return nil, err
+}
+
+// Commit computes commitments for blobs.
+// This method doesn't rewrite namespaces as it's a local operation.
+func (api *namespaceMigrationDAAPI) Commit(ctx context.Context, blobs []da.Blob, ns []byte) ([]da.Commitment, error) {
+	return api.API.Commit(ctx, blobs, ns)
+}
+
+// Validate validates blob proofs.
+// This method tries the provided namespace first, then falls back to historical namespaces.
+func (api *namespaceMigrationDAAPI) Validate(ctx context.Context, ids []da.ID, proofs []da.Proof, ns []byte) ([]bool, error) {
+	// Try with the provided namespace first
+	results, err := api.API.Validate(ctx, ids, proofs, ns)
+	if err == nil {
+		return results, nil
+	}
+
+	// If no migrations, return the original error
+	if len(api.migrations) == 0 {
+		return nil, err
+	}
+
+	// Determine if we're looking for data or header namespace
+	isDataNamespace := bytes.Equal(ns, api.currentDataNamespace)
+
+	// Try each historical namespace from migrations
+	for _, migration := range api.migrations {
+		var historicalNS []byte
+		if isDataNamespace {
+			historicalNS = da.NamespaceFromString(migration.GetDataNamespace()).Bytes()
+		} else {
+			historicalNS = da.NamespaceFromString(migration.GetNamespace()).Bytes()
+		}
+
+		// Skip if this is the same as what we already tried
+		if bytes.Equal(historicalNS, ns) {
+			continue
+		}
+
+		results, err = api.API.Validate(ctx, ids, proofs, historicalNS)
+		if err == nil {
+			return results, nil
+		}
+	}
+
+	// Return the last error if nothing worked
+	return nil, err
+}
+
+// Submit submits blobs to the DA layer.
+// This method uses the current namespace (no migration rewriting) as it's for new submissions.
+func (api *namespaceMigrationDAAPI) Submit(ctx context.Context, blobs []da.Blob, gasPrice float64, ns []byte) ([]da.ID, error) {
+	return api.API.Submit(ctx, blobs, gasPrice, ns)
+}
+
+// SubmitWithOptions submits blobs to the DA layer with additional options.
+// This method uses the current namespace (no migration rewriting) as it's for new submissions.
+func (api *namespaceMigrationDAAPI) SubmitWithOptions(ctx context.Context, blobs []da.Blob, gasPrice float64, ns []byte, options []byte) ([]da.ID, error) {
+	return api.API.SubmitWithOptions(ctx, blobs, gasPrice, ns, options)
 }
