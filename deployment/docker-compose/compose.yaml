@@ -17,7 +17,7 @@ services:
       fi"
 
   ev-reth:
-    image: ghcr.io/evstack/ev-reth@sha256:d342207927371a8d0f1ada6443dd5ed3d7ab5ad194806ee4a5b7234d9456a9c6 # commit bff2b1470343f724da58eff7085390af2f41b280
+    image: ghcr.io/evstack/ev-reth:main
     depends_on:
       jwt-init:
         condition: service_completed_successfully
@@ -46,7 +46,6 @@ services:
           --http.api "eth,net,web3,txpool" \
           --ws --ws.addr 0.0.0.0 --ws.port ${EV_RETH_WS_PORT} \
           --disable-discovery \
-          --trusted-peers enode://d42c0dd3ccce9d97bf199f23e9f91b2ba75e9f13a05bb04d37adec9cca9fb6d725c667bc3ffb4170137162377aa25e6253cad5b062c15896882e91db2f56bd02@100.69.117.98:30303 \
           --txpool.pending-max-count 200000 \
           --txpool.pending-max-size 200 \
           --txpool.queued-max-count 200000 \
@@ -66,7 +65,7 @@ services:
       start_period: 30s
 
   ev-node:
-    image: ghcr.io/evstack/ev-node-evm-single@sha256:d5a2807ccbb0fa61cf03e4376d189b29dabce73f4aba67ba21624434425a2220 # main
+    image: ghcr.io/evstack/ev-node-evm-single:main
     env_file: .env
     network_mode: host
     restart: always
