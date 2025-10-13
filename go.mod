@@ -13,6 +13,7 @@ require (
 	github.com/evstack/ev-node/execution/evm v1.0.0-beta.2
 	github.com/evstack/ev-node/sequencers/single v1.0.0-beta.2
 	github.com/ipfs/go-datastore v0.9.0
+	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
 )
@@ -253,7 +254,6 @@ require (
 	github.com/quic-go/webtransport-go v0.9.0 // indirect
 	github.com/r3labs/sse v0.0.0-20210224172625-26fe804710bc // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
-	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.4.0 // indirect
 	github.com/serialx/hashring v0.0.0-20200727003509-22c0c7ab6b1b // indirect
