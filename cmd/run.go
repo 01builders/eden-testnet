@@ -13,6 +13,7 @@ import (
 	"github.com/evstack/ev-node/sequencers/single"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
 	"github.com/evstack/ev-node/execution/evm"
@@ -58,7 +59,7 @@ var RunCmd = &cobra.Command{
 			return err
 		}
 
-		daAPI := newNamespaceMigrationDAAPI(daJrpc.DA, nodeConfig, migrations)
+		daAPI := newNamespaceMigrationDAAPI(daJrpc.DA, logger.With().Str("module", "da_ns_migration").Logger(), nodeConfig, migrations)
 
 		datastore, err := store.NewDefaultKVStore(nodeConfig.RootDir, nodeConfig.DBPath, "eden-testnet")
 		if err != nil {
@@ -180,6 +181,7 @@ func (n namespaces) GetDataNamespace() string {
 // namespaceMigrationDAAPI is wrapper around the da json rpc to use when handling namespace migrations
 type namespaceMigrationDAAPI struct {
 	jsonrpc.API
+	logger zerolog.Logger
 
 	migrations map[uint64]namespaces
 
@@ -187,9 +189,10 @@ type namespaceMigrationDAAPI struct {
 	currentDataNamespace []byte
 }
 
-func newNamespaceMigrationDAAPI(api jsonrpc.API, cfg config.Config, migrations map[uint64]namespaces) *namespaceMigrationDAAPI {
+func newNamespaceMigrationDAAPI(api jsonrpc.API, logger zerolog.Logger, cfg config.Config, migrations map[uint64]namespaces) *namespaceMigrationDAAPI {
 	return &namespaceMigrationDAAPI{
 		API:                  api,
+		logger:               logger,
 		migrations:           migrations,
 		currentNamespace:     da.NamespaceFromString(cfg.DA.GetNamespace()).Bytes(),
 		currentDataNamespace: da.NamespaceFromString(cfg.DA.GetDataNamespace()).Bytes(),
@@ -274,8 +277,13 @@ func (api *namespaceMigrationDAAPI) findNamespaceForHeight(height uint64, isData
 // This method handles namespace migrations by determining the correct namespace based on height
 func (api *namespaceMigrationDAAPI) GetIDs(ctx context.Context, height uint64, ns []byte) (*da.GetIDsResult, error) {
 	isDataNamespace := api.isDataNS(ns)
-	ns = api.findNamespaceForHeight(height, isDataNamespace)
-	return api.API.GetIDs(ctx, height, ns)
+	resolvedNS := api.findNamespaceForHeight(height, isDataNamespace)
+	api.logger.Debug().
+		Uint64("height", height).
+		Bool("isDataNS", isDataNamespace).
+		Str("ns", fmt.Sprintf("%x", resolvedNS)).
+		Msg("GetIDs using namespace for height")
+	return api.API.GetIDs(ctx, height, resolvedNS)
 }
 
 // Get retrieves blobs by their IDs from the DA layer.
@@ -310,8 +318,10 @@ func (api *namespaceMigrationDAAPI) Get(ctx context.Context, ids []da.ID, ns []b
 		if bytes.Equal(candidate, ns) {
 			continue
 		}
+		api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Get fallback try")
 		blobs, err = api.API.Get(ctx, ids, candidate)
 		if err == nil {
+			api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Get succeeded with fallback namespace")
 			return blobs, nil
 		}
 	}
@@ -352,8 +362,10 @@ func (api *namespaceMigrationDAAPI) GetProofs(ctx context.Context, ids []da.ID, 
 			continue
 		}
 
+		api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("GetProofs fallback try")
 		proofs, err = api.API.GetProofs(ctx, ids, candidate)
 		if err == nil {
+			api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("GetProofs succeeded with fallback namespace")
 			return proofs, nil
 		}
 	}
@@ -400,8 +412,10 @@ func (api *namespaceMigrationDAAPI) Validate(ctx context.Context, ids []da.ID, p
 			continue
 		}
 
+		api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Validate fallback try")
 		results, err = api.API.Validate(ctx, ids, proofs, candidate)
 		if err == nil {
+			api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Validate succeeded with fallback namespace")
 			return results, nil
 		}
 	}
