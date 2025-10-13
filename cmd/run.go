@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 
 	"github.com/evstack/ev-node/core/da"
 	"github.com/evstack/ev-node/da/jsonrpc"
@@ -12,6 +13,7 @@ import (
 	"github.com/evstack/ev-node/sequencers/single"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
 	"github.com/evstack/ev-node/execution/evm"
@@ -57,7 +59,7 @@ var RunCmd = &cobra.Command{
 			return err
 		}
 
-		daAPI := newNamespaceMigrationDAAPI(daJrpc.DA, nodeConfig, migrations)
+		daAPI := newNamespaceMigrationDAAPI(daJrpc.DA, logger.With().Str("module", "da_ns_migration").Logger(), nodeConfig, migrations)
 
 		datastore, err := store.NewDefaultKVStore(nodeConfig.RootDir, nodeConfig.DBPath, "eden-testnet")
 		if err != nil {
@@ -179,6 +181,7 @@ func (n namespaces) GetDataNamespace() string {
 // namespaceMigrationDAAPI is wrapper around the da json rpc to use when handling namespace migrations
 type namespaceMigrationDAAPI struct {
 	jsonrpc.API
+	logger zerolog.Logger
 
 	migrations map[uint64]namespaces
 
@@ -186,13 +189,51 @@ type namespaceMigrationDAAPI struct {
 	currentDataNamespace []byte
 }
 
-func newNamespaceMigrationDAAPI(api jsonrpc.API, cfg config.Config, migrations map[uint64]namespaces) *namespaceMigrationDAAPI {
+func newNamespaceMigrationDAAPI(api jsonrpc.API, logger zerolog.Logger, cfg config.Config, migrations map[uint64]namespaces) *namespaceMigrationDAAPI {
 	return &namespaceMigrationDAAPI{
 		API:                  api,
+		logger:               logger,
 		migrations:           migrations,
 		currentNamespace:     da.NamespaceFromString(cfg.DA.GetNamespace()).Bytes(),
 		currentDataNamespace: da.NamespaceFromString(cfg.DA.GetDataNamespace()).Bytes(),
 	}
+}
+
+// isDataNS returns true if the provided namespace matches the current data namespace
+// or any historical data namespace defined in migrations.
+func (api *namespaceMigrationDAAPI) isDataNS(ns []byte) bool {
+	if bytes.Equal(ns, api.currentDataNamespace) {
+		return true
+	}
+	for _, m := range api.migrations {
+		if bytes.Equal(ns, da.NamespaceFromString(m.GetDataNamespace()).Bytes()) {
+			return true
+		}
+	}
+	return false
+}
+
+// orderedMigrationNamespaces returns the migration namespaces in a deterministic order (by height asc).
+func (api *namespaceMigrationDAAPI) orderedMigrationNamespaces(isData bool) [][]byte {
+	if len(api.migrations) == 0 {
+		return nil
+	}
+	keys := make([]uint64, 0, len(api.migrations))
+	for k := range api.migrations {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+
+	out := make([][]byte, 0, len(keys))
+	for _, k := range keys {
+		m := api.migrations[k]
+		if isData {
+			out = append(out, da.NamespaceFromString(m.GetDataNamespace()).Bytes())
+		} else {
+			out = append(out, da.NamespaceFromString(m.GetNamespace()).Bytes())
+		}
+	}
+	return out
 }
 
 // findNamespaceForHeight determines the correct namespace to use for a given height.
@@ -235,9 +276,14 @@ func (api *namespaceMigrationDAAPI) findNamespaceForHeight(height uint64, isData
 // GetIDs returns IDs of all Blobs located in DA at given height.
 // This method handles namespace migrations by determining the correct namespace based on height
 func (api *namespaceMigrationDAAPI) GetIDs(ctx context.Context, height uint64, ns []byte) (*da.GetIDsResult, error) {
-	isDataNamespace := bytes.Equal(ns, api.currentDataNamespace)
-	ns = api.findNamespaceForHeight(height, isDataNamespace)
-	return api.API.GetIDs(ctx, height, ns)
+	isDataNamespace := api.isDataNS(ns)
+	resolvedNS := api.findNamespaceForHeight(height, isDataNamespace)
+	api.logger.Debug().
+		Uint64("height", height).
+		Bool("isDataNS", isDataNamespace).
+		Str("ns", fmt.Sprintf("%x", resolvedNS)).
+		Msg("GetIDs using namespace for height")
+	return api.API.GetIDs(ctx, height, resolvedNS)
 }
 
 // Get retrieves blobs by their IDs from the DA layer.
@@ -256,24 +302,26 @@ func (api *namespaceMigrationDAAPI) Get(ctx context.Context, ids []da.ID, ns []b
 	}
 
 	// Determine if we're looking for data or header namespace
-	isDataNamespace := bytes.Equal(ns, api.currentDataNamespace)
+	isDataNamespace := api.isDataNS(ns)
 
-	// Try each historical namespace from migrations
-	for _, migration := range api.migrations {
-		var historicalNS []byte
-		if isDataNamespace {
-			historicalNS = da.NamespaceFromString(migration.GetDataNamespace()).Bytes()
-		} else {
-			historicalNS = da.NamespaceFromString(migration.GetNamespace()).Bytes()
-		}
+	// Build deterministic fallback namespaces: current first, then migrations by height asc.
+	candidates := make([][]byte, 0, len(api.migrations)+1)
+	if isDataNamespace {
+		candidates = append(candidates, api.currentDataNamespace)
+	} else {
+		candidates = append(candidates, api.currentNamespace)
+	}
+	candidates = append(candidates, api.orderedMigrationNamespaces(isDataNamespace)...)
 
+	for _, candidate := range candidates {
 		// Skip if this is the same as what we already tried
-		if bytes.Equal(historicalNS, ns) {
+		if bytes.Equal(candidate, ns) {
 			continue
 		}
-
-		blobs, err = api.API.Get(ctx, ids, historicalNS)
+		api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Get fallback try")
+		blobs, err = api.API.Get(ctx, ids, candidate)
 		if err == nil {
+			api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Get succeeded with fallback namespace")
 			return blobs, nil
 		}
 	}
@@ -297,24 +345,27 @@ func (api *namespaceMigrationDAAPI) GetProofs(ctx context.Context, ids []da.ID, 
 	}
 
 	// Determine if we're looking for data or header namespace
-	isDataNamespace := bytes.Equal(ns, api.currentDataNamespace)
+	isDataNamespace := api.isDataNS(ns)
 
-	// Try each historical namespace from migrations
-	for _, migration := range api.migrations {
-		var historicalNS []byte
-		if isDataNamespace {
-			historicalNS = da.NamespaceFromString(migration.GetDataNamespace()).Bytes()
-		} else {
-			historicalNS = da.NamespaceFromString(migration.GetNamespace()).Bytes()
-		}
+	// Build deterministic fallback namespaces: current first, then migrations by height asc.
+	candidates := make([][]byte, 0, len(api.migrations)+1)
+	if isDataNamespace {
+		candidates = append(candidates, api.currentDataNamespace)
+	} else {
+		candidates = append(candidates, api.currentNamespace)
+	}
+	candidates = append(candidates, api.orderedMigrationNamespaces(isDataNamespace)...)
 
+	for _, candidate := range candidates {
 		// Skip if this is the same as what we already tried
-		if bytes.Equal(historicalNS, ns) {
+		if bytes.Equal(candidate, ns) {
 			continue
 		}
 
-		proofs, err = api.API.GetProofs(ctx, ids, historicalNS)
+		api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("GetProofs fallback try")
+		proofs, err = api.API.GetProofs(ctx, ids, candidate)
 		if err == nil {
+			api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("GetProofs succeeded with fallback namespace")
 			return proofs, nil
 		}
 	}
@@ -344,24 +395,27 @@ func (api *namespaceMigrationDAAPI) Validate(ctx context.Context, ids []da.ID, p
 	}
 
 	// Determine if we're looking for data or header namespace
-	isDataNamespace := bytes.Equal(ns, api.currentDataNamespace)
+	isDataNamespace := api.isDataNS(ns)
 
-	// Try each historical namespace from migrations
-	for _, migration := range api.migrations {
-		var historicalNS []byte
-		if isDataNamespace {
-			historicalNS = da.NamespaceFromString(migration.GetDataNamespace()).Bytes()
-		} else {
-			historicalNS = da.NamespaceFromString(migration.GetNamespace()).Bytes()
-		}
+	// Build deterministic fallback namespaces: current first, then migrations by height asc.
+	candidates := make([][]byte, 0, len(api.migrations)+1)
+	if isDataNamespace {
+		candidates = append(candidates, api.currentDataNamespace)
+	} else {
+		candidates = append(candidates, api.currentNamespace)
+	}
+	candidates = append(candidates, api.orderedMigrationNamespaces(isDataNamespace)...)
 
+	for _, candidate := range candidates {
 		// Skip if this is the same as what we already tried
-		if bytes.Equal(historicalNS, ns) {
+		if bytes.Equal(candidate, ns) {
 			continue
 		}
 
-		results, err = api.API.Validate(ctx, ids, proofs, historicalNS)
+		api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Validate fallback try")
+		results, err = api.API.Validate(ctx, ids, proofs, candidate)
 		if err == nil {
+			api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Validate succeeded with fallback namespace")
 			return results, nil
 		}
 	}
