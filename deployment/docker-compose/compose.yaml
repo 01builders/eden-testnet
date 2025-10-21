@@ -17,7 +17,7 @@ services:
       fi"
 
   ev-reth:
-    image: ghcr.io/evstack/ev-reth:main
+    image: ghcr.io/evstack/ev-reth:v0.1.0
     depends_on:
       jwt-init:
         condition: service_completed_successfully
@@ -65,7 +65,7 @@ services:
       start_period: 30s
 
   ev-node:
-    image: ghcr.io/evstack/ev-node-evm-single:main
+    image: ghcr.io/evstack/ev-node-evm-single:v1.0.0-beta.8
     env_file: .env
     network_mode: host
     restart: always
