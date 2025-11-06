@@ -46,6 +46,7 @@ services:
           --http.api "eth,net,web3,txpool" \
           --ws --ws.addr 0.0.0.0 --ws.port ${EV_RETH_WS_PORT} \
           --disable-discovery \
+          --trusted-peers enode://e3e0025a64440eff4879b216766550d7237291cb94b79bb641b1e25933b08c9a3aada6583e25b320aebe84b643b85e14be934a8725eb6aacb74d6f65abfbeb74@fullnode-1-eden-testnet.binarybuilders.services:30313,enode://477544b9c4bc4136b9d25759b38be971c29dcf669105e02e8630f1e0407f58dc740137d3f21d02451d5f7b08bbbf31909cbd876af99818a34e64892e73498906@fullnode-2-eden-testnet.binarybuilders.services:30313 \
           --txpool.pending-max-count 200000 \
           --txpool.pending-max-size 200 \
           --txpool.queued-max-count 200000 \
@@ -65,7 +66,7 @@ services:
       start_period: 30s
 
   ev-node:
-    image: ghcr.io/evstack/ev-node-evm-single:v1.0.0-beta.8
+    image: ghcr.io/evstack/ev-node-evm-single:v1.0.0-beta.9
     env_file: .env
     network_mode: host
     restart: always
@@ -89,7 +90,7 @@ services:
       - DA_DATA_NAMESPACE=${DA_DATA_NAMESPACE}
       - EVM_ENGINE_URL=http://${EV_RETH_ADDRESS}:${EV_RETH_ENGINE_PORT}
       - EVM_ETH_URL=http://${EV_RETH_ADDRESS}:${EV_RETH_RPC_PORT}
-      - EVM_JWT_PATH=/root/jwt/jwt.hex
+      - EVM_JWT_SECRET_FILE=/root/jwt/jwt.hex
     healthcheck:
       test: [CMD, curl, "localhost:${EV_NODE_RPC_PORT}/health/live"]
       interval: 5s

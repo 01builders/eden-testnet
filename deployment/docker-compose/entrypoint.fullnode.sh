@@ -79,19 +79,6 @@ else
 	log "INFO" "No DA_AUTH_TOKEN_PATH specified"
 fi
 
-# Importing JWT token
-log "INFO" "Checking for JWT secret"
-if [ -n "${EVM_JWT_PATH:-}" ]; then
-	if [ -f "${EVM_JWT_PATH}" ]; then
-		EVM_JWT_SECRET=$(cat "${EVM_JWT_PATH}")
-		log "SUCCESS" "JWT secret loaded from: ${EVM_JWT_PATH}"
-	else
-		log "WARNING" "EVM_JWT_PATH specified but file not found: ${EVM_JWT_PATH}"
-	fi
-else
-	log "INFO" "No EVM_JWT_PATH specified"
-fi
-
 # Auto-retrieve genesis hash if not provided
 log "INFO" "Checking genesis hash configuration"
 if [ -z "${EVM_GENESIS_HASH:-}" ] && [ -n "${EVM_ETH_URL:-}" ]; then
@@ -147,9 +134,9 @@ log "INFO" "Building startup configuration flags"
 default_flags=""
 
 # Add required flags if environment variables are set
-if [ -n "${EVM_JWT_SECRET:-}" ]; then
-	default_flags="${default_flags} --evm.jwt-secret ${EVM_JWT_SECRET}"
-	log "DEBUG" "Added JWT secret flag"
+if [ -n "${EVM_JWT_SECRET_FILE:-}" ]; then
+	default_flags="$default_flags --evm.jwt-secret-file $EVM_JWT_SECRET_FILE"
+	log "DEBUG" "Added JWT secret file flag"
 fi
 
 if [ -n "${EVM_GENESIS_HASH:-}" ]; then
