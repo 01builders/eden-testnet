@@ -8,7 +8,7 @@ require (
 	github.com/celestiaorg/go-header v0.7.3
 	github.com/ethereum/go-ethereum v1.16.4
 	github.com/evstack/ev-node v1.0.0-beta.8
-	github.com/evstack/ev-node/core v1.0.0-beta.3
+	github.com/evstack/ev-node/core v1.0.0-beta.4
 	github.com/evstack/ev-node/da v1.0.0-beta.4
 	github.com/evstack/ev-node/execution/evm v1.0.0-beta.2
 	github.com/evstack/ev-node/sequencers/single v1.0.0-beta.2
