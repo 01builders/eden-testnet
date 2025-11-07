@@ -8,8 +8,8 @@ require (
 	github.com/celestiaorg/go-header v0.7.3
 	github.com/ethereum/go-ethereum v1.16.4
 	github.com/evstack/ev-node v1.0.0-beta.8
-	github.com/evstack/ev-node/core v1.0.0-beta.3
-	github.com/evstack/ev-node/da v1.0.0-beta.4
+	github.com/evstack/ev-node/core v1.0.0-beta.4
+	github.com/evstack/ev-node/da v1.0.0-beta.5
 	github.com/evstack/ev-node/execution/evm v1.0.0-beta.2
 	github.com/evstack/ev-node/sequencers/single v1.0.0-beta.2
 	github.com/ipfs/go-datastore v0.9.0
@@ -96,7 +96,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/ferranbt/fastssz v0.1.4 // indirect
 	github.com/filecoin-project/go-clock v0.1.0 // indirect
-	github.com/filecoin-project/go-jsonrpc v0.8.0 // indirect
+	github.com/filecoin-project/go-jsonrpc v0.9.0 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsevents v0.2.0 // indirect

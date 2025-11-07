@@ -261,10 +261,10 @@ github.com/ethereum/go-verkle v0.2.2 h1:I2W0WjnrFUIzzVPwm8ykY+7pL2d4VhlsePn4j7cn
 github.com/ethereum/go-verkle v0.2.2/go.mod h1:M3b90YRnzqKyyzBEWJGqj8Qff4IDeXnzFw0P9bFw3uk=
 github.com/evstack/ev-node v1.0.0-beta.8 h1:JxeVadKfk6TnFCEXYfYlBj8c7tQWyOxDECKy7PUgru4=
 github.com/evstack/ev-node v1.0.0-beta.8/go.mod h1:n1dCjxdOBe2lMr6//nyeLG+J3q/CFkIqBZ+8Me3Ci0k=
-github.com/evstack/ev-node/core v1.0.0-beta.3 h1:01K2Ygm3puX4m2OBxvg/HDxu+he54jeNv+KDmpgujFc=
-github.com/evstack/ev-node/core v1.0.0-beta.3/go.mod h1:n2w/LhYQTPsi48m6lMj16YiIqsaQw6gxwjyJvR+B3sY=
-github.com/evstack/ev-node/da v1.0.0-beta.4 h1:6W+UsQrsEdBbAnyy8j+lYNo2VQvJUaoSNkToMFThtVU=
-github.com/evstack/ev-node/da v1.0.0-beta.4/go.mod h1:O3Lbx4/WFN0DIUOHdTihmyRnGmQwVXdswH19RW/KyG4=
+github.com/evstack/ev-node/core v1.0.0-beta.4 h1:F/rqHCrZ+ViUY4I6RuoBVvkhYfosD68yo/6gCdGRdmo=
+github.com/evstack/ev-node/core v1.0.0-beta.4/go.mod h1:n2w/LhYQTPsi48m6lMj16YiIqsaQw6gxwjyJvR+B3sY=
+github.com/evstack/ev-node/da v1.0.0-beta.5 h1:rWs/H0Nkj9uwTqD7Tzu+PpaNHGFE71B1ZVKCFLx0yVI=
+github.com/evstack/ev-node/da v1.0.0-beta.5/go.mod h1:lJ7vGlczBwiqTaTE9C4zV9tEsQO+oi0sqyUyYzj3zpo=
 github.com/evstack/ev-node/execution/evm v1.0.0-beta.2 h1:anF3zVt9vY8Znx0u1QXmQB13zAbmBs2ZNhRZbV9RT1E=
 github.com/evstack/ev-node/execution/evm v1.0.0-beta.2/go.mod h1:GfHbwRt9i2KMVurbsWM26CV2972DNDFiMHc2r6Uvp1A=
 github.com/evstack/ev-node/sequencers/single v1.0.0-beta.2 h1:UlQd3WL2p6bBtGMYYok8PUGxUEQJ74rf2XHlCqJF7Z8=
@@ -275,8 +275,8 @@ github.com/ferranbt/fastssz v0.1.4 h1:OCDB+dYDEQDvAgtAGnTSidK1Pe2tW3nFV40XyMkTeD
 github.com/ferranbt/fastssz v0.1.4/go.mod h1:Ea3+oeoRGGLGm5shYAeDgu6PGUlcvQhE2fILyD9+tGg=
 github.com/filecoin-project/go-clock v0.1.0 h1:SFbYIM75M8NnFm1yMHhN9Ahy3W5bEZV9gd6MPfXbKVU=
 github.com/filecoin-project/go-clock v0.1.0/go.mod h1:4uB/O4PvOjlx1VCMdZ9MyDZXRm//gkj1ELEbxfI1AZs=
-github.com/filecoin-project/go-jsonrpc v0.8.0 h1:2yqlN3Vd8Gx5UtA3fib7tQu2aW1cSOJt253LEBWExo4=
-github.com/filecoin-project/go-jsonrpc v0.8.0/go.mod h1:p8WGOwQGYbFugSdK7qKIGhhb1VVcQ2rtBLdEiik1QWI=
+github.com/filecoin-project/go-jsonrpc v0.9.0 h1:G47qEF52w7GholpI21vPSTVBFvsrip6geIoqNiqyZtQ=
+github.com/filecoin-project/go-jsonrpc v0.9.0/go.mod h1:OG7kVBVh/AbDFHIwx7Kw0l9ARmKOS6gGOr0LbdBpbLc=
 github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568/go.mod h1:xEzjJPgXI435gkrCt3MPfRiAkVrwSbHsst4LCFVfpJc=
 github.com/flynn/noise v1.1.0 h1:KjPQoQCEFdZDiP03phOvGi11+SVVhBG2wOWAorLsstg=
 github.com/flynn/noise v1.1.0/go.mod h1:xbMo+0i6+IGbYdJhF31t2eR1BIU0CYc12+BNAKwUTag=
