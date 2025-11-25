@@ -1,7 +1,7 @@
 ---
 services:
   jwt-init:
-    image: ghcr.io/linuxserver/baseimage-alpine:3.22
+    image: &alpine ghcr.io/linuxserver/baseimage-alpine:3.22
     volumes:
       - jwttoken:/jwt
     healthcheck:
@@ -17,7 +17,7 @@ services:
       fi"
 
   init-1-snapshot-ev-reth:
-    image: ghcr.io/linuxserver/baseimage-alpine:3.22
+    image: *alpine
     env_file: .env
     volumes:
       - ./ev-reth.genesis.json:/root/genesis.json:ro
@@ -43,7 +43,7 @@ services:
     restart: "no"
 
   init-2-snapshot-ev-node:
-    image: ghcr.io/linuxserver/baseimage-alpine:3.22
+    image: *alpine
     env_file: .env
     volumes:
       - ev-node-data:/root/.evm
