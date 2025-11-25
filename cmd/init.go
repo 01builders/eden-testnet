@@ -38,13 +38,16 @@ func InitCmd() *cobra.Command {
 				return fmt.Errorf("error validating config: %w", err)
 			}
 
-			// Get passphrase file path
+			passphrase, err := cmd.Flags().GetString(flagBackwardPassphrase)
+			if err != nil {
+				return fmt.Errorf("failed to get '%s' flag: %w", flagBackwardPassphrase, err)
+			}
+
 			passphraseFile, err := cmd.Flags().GetString(rollconf.FlagSignerPassphraseFile)
 			if err != nil {
 				return fmt.Errorf("failed to get '%s' flag: %w", rollconf.FlagSignerPassphraseFile, err)
 			}
 
-			var passphrase string
 			if passphraseFile != "" {
 				// Read passphrase from file
 				passphraseBytes, err := os.ReadFile(passphraseFile)
@@ -52,9 +55,8 @@ func InitCmd() *cobra.Command {
 					return fmt.Errorf("failed to read passphrase from file '%s': %w", passphraseFile, err)
 				}
 				passphrase = strings.TrimSpace(string(passphraseBytes))
-
 				if passphrase == "" {
-					return fmt.Errorf("passphrase file '%s' is empty", passphraseFile)
+					return fmt.Errorf("passphrase (file) '%s' is empty", passphraseFile)
 				}
 			}
 
@@ -102,6 +104,13 @@ func InitCmd() *cobra.Command {
 	// Add flags to the command
 	rollconf.AddFlags(initCmd)
 	initCmd.Flags().String(rollgenesis.ChainIDFlag, "edennet-2", "chain ID")
+	initCmd.Flags().String(flagBackwardPassphrase, "", "signer passphrase (required for file signer and if aggregator is enabled)")
+
+	initCmd.MarkFlagsMutuallyExclusive(flagBackwardPassphrase, rollconf.FlagSignerPassphraseFile)
 
 	return initCmd
 }
+
+const (
+	flagBackwardPassphrase = rollconf.FlagPrefixEvnode + "signer.passphrase"
+)
