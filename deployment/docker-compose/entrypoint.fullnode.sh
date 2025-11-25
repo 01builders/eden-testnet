@@ -2,19 +2,16 @@
 # Fail on any error
 set -e
 
-# Fail on any error in a pipeline
-set -o pipefail
-
 # Fail when using undeclared variables
 set -u
 
 # Source shared logging utility
 log() {
-    level="$1"
-    message="$2"
-    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+	level="$1"
+	message="$2"
+	timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-    echo "📝 [$timestamp] $level: $message"
+	echo "📝 [${timestamp}] ${level}: ${message}"
 }
 
 log "INIT" "Starting EVM Fullnode initialization"
@@ -22,7 +19,7 @@ sleep 5
 
 # Function to extract --home value from arguments
 get_home_dir() {
-	home_dir="$HOME/.evm-single"
+	home_dir="${HOME}/.evm"
 
 	# Parse arguments to find --home
 	while [ $# -gt 0 ]; do
@@ -46,7 +43,7 @@ get_home_dir() {
 
 # Get the home directory (either from --home flag or default)
 CONFIG_HOME=$(get_home_dir "$@")
-log "INFO" "Using config home directory: $CONFIG_HOME"
+log "INFO" "Using config home directory: ${CONFIG_HOME}"
 
 if [ ! -f "${CONFIG_HOME}/config/node_key.json" ]; then
 	log "INFO" "Node key not found. Initializing new fullnode configuration"
@@ -66,22 +63,9 @@ fi
 cp -pr /volumes/sequencer_export/genesis.json "${CONFIG_HOME}/config/genesis.json"
 log "SUCCESS" "genesis.json copied to: ${CONFIG_HOME}/config/genesis.json"
 
-# Importing DA auth token
-log "INFO" "Checking for DA authentication token"
-if [ -n "${DA_AUTH_TOKEN_PATH:-}" ]; then
-	if [ -f "${DA_AUTH_TOKEN_PATH}" ]; then
-		DA_AUTH_TOKEN=$(cat "${DA_AUTH_TOKEN_PATH}")
-		log "SUCCESS" "DA auth token loaded from: ${DA_AUTH_TOKEN_PATH}"
-	else
-		log "WARNING" "DA_AUTH_TOKEN_PATH specified but file not found: ${DA_AUTH_TOKEN_PATH}"
-	fi
-else
-	log "INFO" "No DA_AUTH_TOKEN_PATH specified"
-fi
-
 # Auto-retrieve genesis hash if not provided
 log "INFO" "Checking genesis hash configuration"
-if [ -z "${EVM_GENESIS_HASH:-}" ] && [ -n "${EVM_ETH_URL:-}" ]; then
+if [ -z "${EVM_GENESIS_HASH-}" ] && [ -n "${EVM_ETH_URL-}" ]; then
 	log "INFO" "EVM_GENESIS_HASH not provided, attempting to retrieve from ev-reth at: ${EVM_ETH_URL}"
 
 	# Wait for ev-reth to be ready (max 60 seconds)
@@ -123,7 +107,7 @@ if [ -z "${EVM_GENESIS_HASH:-}" ] && [ -n "${EVM_ETH_URL:-}" ]; then
 			log "WARNING" "Failed to retrieve genesis block from ev-reth"
 		fi
 	fi
-elif [ -n "${EVM_GENESIS_HASH:-}" ]; then
+elif [ -n "${EVM_GENESIS_HASH-}" ]; then
 	log "INFO" "Using provided genesis hash: ${EVM_GENESIS_HASH}"
 else
 	log "INFO" "No genesis hash configuration provided"
@@ -134,50 +118,50 @@ log "INFO" "Building startup configuration flags"
 default_flags=""
 
 # Add required flags if environment variables are set
-if [ -n "${EVM_JWT_SECRET_FILE:-}" ]; then
-	default_flags="$default_flags --evm.jwt-secret-file $EVM_JWT_SECRET_FILE"
+if [ -n "${EVM_JWT_SECRET_FILE-}" ]; then
+	default_flags="${default_flags} --evm.jwt-secret-file ${EVM_JWT_SECRET_FILE}"
 	log "DEBUG" "Added JWT secret file flag"
 fi
 
-if [ -n "${EVM_GENESIS_HASH:-}" ]; then
+if [ -n "${EVM_GENESIS_HASH-}" ]; then
 	default_flags="${default_flags} --evm.genesis-hash ${EVM_GENESIS_HASH}"
 	log "DEBUG" "Added genesis hash flag"
 fi
 
-if [ -n "${EVM_ENGINE_URL:-}" ]; then
+if [ -n "${EVM_ENGINE_URL-}" ]; then
 	default_flags="${default_flags} --evm.engine-url ${EVM_ENGINE_URL}"
 	log "DEBUG" "Added engine URL flag: ${EVM_ENGINE_URL}"
 fi
 
-if [ -n "${EVM_ETH_URL:-}" ]; then
+if [ -n "${EVM_ETH_URL-}" ]; then
 	default_flags="${default_flags} --evm.eth-url ${EVM_ETH_URL}"
 	log "DEBUG" "Added ETH URL flag: ${EVM_ETH_URL}"
 fi
 
 log "INFO" "Configuring Data Availability (DA) settings"
-if [ -n "${SEQUENCER_P2P_INFO:-}" ]; then
+if [ -n "${SEQUENCER_P2P_INFO-}" ]; then
 	default_flags="${default_flags} --evnode.p2p.peers ${SEQUENCER_P2P_INFO}"
 	log "DEBUG" "Added p2p peer flag: ${SEQUENCER_P2P_INFO}"
 fi
 
 # Conditionally add DA-related flags
 log "INFO" "Configuring Data Availability (DA) settings"
-if [ -n "${DA_ADDRESS:-}" ]; then
+if [ -n "${DA_ADDRESS-}" ]; then
 	default_flags="${default_flags} --evnode.da.address ${DA_ADDRESS}"
 	log "DEBUG" "Added DA address flag: ${DA_ADDRESS}"
 fi
 
-if [ -n "${DA_AUTH_TOKEN:-}" ]; then
+if [ -n "${DA_AUTH_TOKEN-}" ]; then
 	default_flags="${default_flags} --evnode.da.auth_token ${DA_AUTH_TOKEN}"
 	log "DEBUG" "Added DA auth token flag"
 fi
 
-if [ -n "${DA_DATA_NAMESPACE:-}" ]; then
+if [ -n "${DA_DATA_NAMESPACE-}" ]; then
 	default_flags="${default_flags} --evnode.da.data_namespace ${DA_DATA_NAMESPACE}"
 	log "DEBUG" "Added DA data namespace flag: ${DA_DATA_NAMESPACE}"
 fi
 
-if [ -n "${DA_HEADER_NAMESPACE:-}" ]; then
+if [ -n "${DA_HEADER_NAMESPACE-}" ]; then
 	default_flags="${default_flags} --evnode.da.namespace ${DA_HEADER_NAMESPACE}"
 	log "DEBUG" "Added DA header namespace flag: ${DA_HEADER_NAMESPACE}"
 fi
