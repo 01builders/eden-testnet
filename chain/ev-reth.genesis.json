@@ -2857,8 +2857,17 @@
     "petersburgBlock": 0,
     "pragueTime": 0,
     "shanghaiTime": 0,
+    "osakaTime": 1765555200,
     "terminalTotalDifficulty": 0,
-    "terminalTotalDifficultyPassed": true
+    "terminalTotalDifficultyPassed": true,
+    "evolve": {
+      "baseFeeSink": "0x2Be4490805BE0D0500b38A6687d94738a26fFC22",
+      "baseFeeRedirectActivationHeight": 25000000,
+      "mintPrecompileAdmin": "0xc259e540167B7487A89b45343F4044d5951cf871",
+      "mintPrecompileActivationHeight": 25000000,
+      "contractSizeLimit": 131072,
+      "contractSizeLimitActivationHeight": 25000000
+    }
   },
   "difficulty": "0x0",
   "extraData": "0x",

@@ -58,7 +58,7 @@ services:
         condition: service_completed_successfully
 
   ev-reth:
-    image: ghcr.io/evstack/ev-reth:v0.1.0
+    image: ghcr.io/evstack/ev-reth:v0.2.0
     depends_on:
       jwt-init:
         condition: service_completed_successfully
@@ -75,7 +75,6 @@ services:
     command:
       - |
         ev-reth node \
-        --ev-reth.enable \
         --engine.persistence-threshold 0 \
         --engine.memory-block-buffer-target 0 \
         --engine.always-process-payload-attributes-on-canonical-head \
