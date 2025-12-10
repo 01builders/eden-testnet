@@ -29,11 +29,11 @@
 ```json
 "evolve": {
   "baseFeeSink": "0x2Be4490805BE0D0500b38A6687d94738a26fFC22",
-  "baseFeeRedirectActivationHeight": 26000000,
+  "baseFeeRedirectActivationHeight": 25000000,
   "mintPrecompileAdmin": "0xc259e540167B7487A89b45343F4044d5951cf871",
-  "mintPrecompileActivationHeight": 26000000,
+  "mintPrecompileActivationHeight": 25000000,
   "contractSizeLimit": 131072,
-  "contractSizeLimitActivationHeight": 26000000
+  "contractSizeLimitActivationHeight": 25000000
 }
 ```
 
