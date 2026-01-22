@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ipfs/go-datastore"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
-	"github.com/evstack/ev-node/apps/evm/server"
 	"github.com/evstack/ev-node/block"
 	"github.com/evstack/ev-node/core/execution"
 	coresequencer "github.com/evstack/ev-node/core/sequencer"
@@ -32,10 +30,7 @@ import (
 	"github.com/evstack/ev-node/pkg/store"
 )
 
-const (
-	flagForceInclusionServer = "force-inclusion-server"
-	evmDbName                = "evm-single"
-)
+const evmDbName = "evm-single"
 
 var RunCmd = &cobra.Command{
 	Use:     "start",
@@ -102,44 +97,6 @@ var RunCmd = &cobra.Command{
 		p2pClient, err := p2p.NewClient(nodeConfig.P2P, nodeKey.PrivKey, datastore, genesis.ChainID, logger, nil)
 		if err != nil {
 			return err
-		}
-
-		// Start force inclusion API server if address is provided
-		forceInclusionAddr, err := cmd.Flags().GetString(flagForceInclusionServer)
-		if err != nil {
-			return fmt.Errorf("failed to get '%s' flag: %w", flagForceInclusionServer, err)
-		}
-
-		if forceInclusionAddr != "" {
-			ethURL, err := cmd.Flags().GetString(evm.FlagEvmEthURL)
-			if err != nil {
-				return fmt.Errorf("failed to get '%s' flag: %w", evm.FlagEvmEthURL, err)
-			}
-
-			forceInclusionServer, err := server.NewForceInclusionServer(
-				forceInclusionAddr,
-				daClient,
-				nodeConfig,
-				genesis,
-				logger,
-				ethURL,
-			)
-			if err != nil {
-				return fmt.Errorf("failed to create force inclusion server: %w", err)
-			}
-
-			if err := forceInclusionServer.Start(cmd.Context()); err != nil {
-				return fmt.Errorf("failed to start force inclusion API server: %w", err)
-			}
-
-			// Ensure server is stopped when node stops
-			defer func() {
-				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				if err := forceInclusionServer.Stop(shutdownCtx); err != nil {
-					logger.Error().Err(err).Msg("failed to stop force inclusion API server")
-				}
-			}()
 		}
 
 		return rollcmd.StartNode(logger, cmd, executor, sequencer, p2pClient, datastore, nodeConfig, genesis, node.NodeOptions{})
@@ -265,7 +222,6 @@ func addFlags(cmd *cobra.Command) {
 	cmd.Flags().String(evm.FlagEvmJWTSecretFile, "", "Path to file containing the JWT secret for authentication")
 	cmd.Flags().String(evm.FlagEvmGenesisHash, "", "Hash of the genesis block")
 	cmd.Flags().String(evm.FlagEvmFeeRecipient, "", "Address that will receive transaction fees")
-	cmd.Flags().String(flagForceInclusionServer, "", "Address for force inclusion API server (e.g. 127.0.0.1:8547). If set, enables the server for direct DA submission")
 
 	cmd.MarkFlagsMutuallyExclusive(flagBackwardJWTSecret, evm.FlagEvmJWTSecretFile)
 
