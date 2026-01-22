@@ -4,27 +4,37 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
-	"sort"
-
-	"github.com/evstack/ev-node/core/da"
-	"github.com/evstack/ev-node/da/jsonrpc"
-	"github.com/evstack/ev-node/node"
-	"github.com/evstack/ev-node/sequencers/single"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ipfs/go-datastore"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
-	"github.com/evstack/ev-node/execution/evm"
-
+	"github.com/evstack/ev-node/apps/evm/server"
+	"github.com/evstack/ev-node/block"
 	"github.com/evstack/ev-node/core/execution"
+	coresequencer "github.com/evstack/ev-node/core/sequencer"
+	"github.com/evstack/ev-node/execution/evm"
+	"github.com/evstack/ev-node/node"
 	rollcmd "github.com/evstack/ev-node/pkg/cmd"
 	"github.com/evstack/ev-node/pkg/config"
+	blobrpc "github.com/evstack/ev-node/pkg/da/jsonrpc"
+	da "github.com/evstack/ev-node/pkg/da/types"
+	"github.com/evstack/ev-node/pkg/genesis"
 	genesispkg "github.com/evstack/ev-node/pkg/genesis"
 	"github.com/evstack/ev-node/pkg/p2p"
 	"github.com/evstack/ev-node/pkg/p2p/key"
+	"github.com/evstack/ev-node/pkg/sequencers/based"
+	"github.com/evstack/ev-node/pkg/sequencers/single"
 	"github.com/evstack/ev-node/pkg/store"
+)
+
+const (
+	flagForceInclusionServer = "force-inclusion-server"
+	evmDbName                = "evm-single"
 )
 
 var RunCmd = &cobra.Command{
@@ -32,17 +42,31 @@ var RunCmd = &cobra.Command{
 	Aliases: []string{"node", "run"},
 	Short:   "Run the evolve node with EVM execution client",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		executor, err := createExecutionClient(cmd)
-		if err != nil {
-			return err
-		}
-
 		nodeConfig, err := rollcmd.ParseConfig(cmd)
 		if err != nil {
 			return err
 		}
 
 		logger := rollcmd.SetupLogger(nodeConfig.Log)
+
+		// Create datastore first - needed by execution client for ExecMeta tracking
+		datastore, err := store.NewDefaultKVStore(nodeConfig.RootDir, nodeConfig.DBPath, evmDbName)
+		if err != nil {
+			return err
+		}
+
+		tracingEnabled := nodeConfig.Instrumentation.IsTracingEnabled()
+		executor, err := createExecutionClient(cmd, datastore, tracingEnabled)
+		if err != nil {
+			return err
+		}
+
+		blobClient, err := blobrpc.NewClient(context.Background(), nodeConfig.DA.Address, nodeConfig.DA.AuthToken, "")
+		if err != nil {
+			return fmt.Errorf("failed to create blob client: %w", err)
+		}
+
+		daClient := block.NewDAClient(blobClient, nodeConfig, logger)
 
 		// Attach logger to the EVM engine client if available
 		if ec, ok := executor.(*evm.EngineClient); ok {
@@ -54,18 +78,6 @@ var RunCmd = &cobra.Command{
 
 		logger.Info().Str("headerNamespace", headerNamespace.HexString()).Str("dataNamespace", dataNamespace.HexString()).Msg("namespaces")
 
-		daJrpc, err := jsonrpc.NewClient(context.Background(), logger, nodeConfig.DA.Address, nodeConfig.DA.AuthToken, rollcmd.DefaultMaxBlobSize)
-		if err != nil {
-			return err
-		}
-
-		daAPI := newNamespaceMigrationDAAPI(daJrpc.DA, logger.With().Str("module", "da_ns_migration").Logger(), nodeConfig, migrations)
-
-		datastore, err := store.NewDefaultKVStore(nodeConfig.RootDir, nodeConfig.DBPath, "eden-testnet")
-		if err != nil {
-			return err
-		}
-
 		genesisPath := filepath.Join(filepath.Dir(nodeConfig.ConfigPath()), "genesis.json")
 		genesis, err := genesispkg.LoadGenesis(genesisPath)
 		if err != nil {
@@ -76,21 +88,8 @@ var RunCmd = &cobra.Command{
 			logger.Warn().Msg("da_start_height is not set in genesis.json, ask your chain developer")
 		}
 
-		singleMetrics, err := single.DefaultMetricsProvider(nodeConfig.Instrumentation.IsPrometheusEnabled())(genesis.ChainID)
-		if err != nil {
-			return err
-		}
-
-		sequencer, err := single.NewSequencer(
-			context.Background(),
-			logger,
-			datastore,
-			daAPI,
-			[]byte(genesis.ChainID),
-			nodeConfig.Node.BlockTime.Duration,
-			singleMetrics,
-			nodeConfig.Node.Aggregator,
-		)
+		// Create sequencer based on configuration
+		sequencer, err := createSequencer(logger, datastore, nodeConfig, genesis, daClient, executor)
 		if err != nil {
 			return err
 		}
@@ -105,7 +104,45 @@ var RunCmd = &cobra.Command{
 			return err
 		}
 
-		return rollcmd.StartNode(logger, cmd, executor, sequencer, daAPI, p2pClient, datastore, nodeConfig, genesis, node.NodeOptions{})
+		// Start force inclusion API server if address is provided
+		forceInclusionAddr, err := cmd.Flags().GetString(flagForceInclusionServer)
+		if err != nil {
+			return fmt.Errorf("failed to get '%s' flag: %w", flagForceInclusionServer, err)
+		}
+
+		if forceInclusionAddr != "" {
+			ethURL, err := cmd.Flags().GetString(evm.FlagEvmEthURL)
+			if err != nil {
+				return fmt.Errorf("failed to get '%s' flag: %w", evm.FlagEvmEthURL, err)
+			}
+
+			forceInclusionServer, err := server.NewForceInclusionServer(
+				forceInclusionAddr,
+				daClient,
+				nodeConfig,
+				genesis,
+				logger,
+				ethURL,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create force inclusion server: %w", err)
+			}
+
+			if err := forceInclusionServer.Start(cmd.Context()); err != nil {
+				return fmt.Errorf("failed to start force inclusion API server: %w", err)
+			}
+
+			// Ensure server is stopped when node stops
+			defer func() {
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := forceInclusionServer.Stop(shutdownCtx); err != nil {
+					logger.Error().Err(err).Msg("failed to stop force inclusion API server")
+				}
+			}()
+		}
+
+		return rollcmd.StartNode(logger, cmd, executor, sequencer, p2pClient, datastore, nodeConfig, genesis, node.NodeOptions{})
 	},
 }
 
@@ -114,7 +151,58 @@ func init() {
 	addFlags(RunCmd)
 }
 
-func createExecutionClient(cmd *cobra.Command) (execution.Executor, error) {
+// createSequencer creates a sequencer based on the configuration.
+// If BasedSequencer is enabled, it creates a based sequencer that fetches transactions from DA.
+// Otherwise, it creates a single (traditional) sequencer.
+func createSequencer(
+	logger zerolog.Logger,
+	datastore datastore.Batching,
+	nodeConfig config.Config,
+	genesis genesis.Genesis,
+	daClient block.FullDAClient,
+	executor execution.Executor,
+) (coresequencer.Sequencer, error) {
+	if nodeConfig.Node.BasedSequencer {
+		// Based sequencer mode - fetch transactions only from DA
+		if !nodeConfig.Node.Aggregator {
+			return nil, fmt.Errorf("based sequencer mode requires aggregator mode to be enabled")
+		}
+
+		basedSeq, err := based.NewBasedSequencer(daClient, nodeConfig, datastore, genesis, logger, executor)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create based sequencer: %w", err)
+		}
+
+		logger.Info().
+			Str("forced_inclusion_namespace", nodeConfig.DA.GetForcedInclusionNamespace()).
+			Uint64("da_epoch", genesis.DAEpochForcedInclusion).
+			Msg("based sequencer initialized")
+
+		return basedSeq, nil
+	}
+
+	sequencer, err := single.NewSequencer(
+		logger,
+		datastore,
+		daClient,
+		nodeConfig,
+		[]byte(genesis.ChainID),
+		1000,
+		genesis,
+		executor,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create single sequencer: %w", err)
+	}
+
+	logger.Info().
+		Str("forced_inclusion_namespace", nodeConfig.DA.GetForcedInclusionNamespace()).
+		Msg("single sequencer initialized")
+
+	return sequencer, nil
+}
+
+func createExecutionClient(cmd *cobra.Command, db datastore.Batching, tracingEnabled bool) (execution.Executor, error) {
 	// Read execution client parameters from flags
 	ethURL, err := cmd.Flags().GetString(evm.FlagEvmEthURL)
 	if err != nil {
@@ -124,10 +212,28 @@ func createExecutionClient(cmd *cobra.Command) (execution.Executor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get '%s' flag: %w", evm.FlagEvmEngineURL, err)
 	}
-	jwtSecret, err := cmd.Flags().GetString(evm.FlagEvmJWTSecret)
+
+	// Get JWT secret file path
+	jwtSecretFile, err := cmd.Flags().GetString(evm.FlagEvmJWTSecretFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get '%s' flag: %w", evm.FlagEvmJWTSecret, err)
+		return nil, fmt.Errorf("failed to get '%s' flag: %w", evm.FlagEvmJWTSecretFile, err)
 	}
+
+	if jwtSecretFile == "" {
+		return nil, fmt.Errorf("JWT secret file must be provided via --evm.jwt-secret-file")
+	}
+
+	// Read JWT secret from file
+	secretBytes, err := os.ReadFile(jwtSecretFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read JWT secret from file '%s': %w", jwtSecretFile, err)
+	}
+	jwtSecret := string(bytes.TrimSpace(secretBytes))
+
+	if jwtSecret == "" {
+		return nil, fmt.Errorf("JWT secret file '%s' is empty", jwtSecretFile)
+	}
+
 	genesisHashStr, err := cmd.Flags().GetString(evm.FlagEvmGenesisHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get '%s' flag: %w", evm.FlagEvmGenesisHash, err)
@@ -141,297 +247,15 @@ func createExecutionClient(cmd *cobra.Command) (execution.Executor, error) {
 	genesisHash := common.HexToHash(genesisHashStr)
 	feeRecipient := common.HexToAddress(feeRecipientStr)
 
-	return evm.NewEngineExecutionClient(ethURL, engineURL, jwtSecret, genesisHash, feeRecipient)
+	return evm.NewEngineExecutionClient(ethURL, engineURL, jwtSecret, genesisHash, feeRecipient, db, tracingEnabled)
 }
 
 // addFlags adds flags related to the EVM execution client
 func addFlags(cmd *cobra.Command) {
 	cmd.Flags().String(evm.FlagEvmEthURL, "http://localhost:8545", "URL of the Ethereum JSON-RPC endpoint")
 	cmd.Flags().String(evm.FlagEvmEngineURL, "http://localhost:8551", "URL of the Engine API endpoint")
-	cmd.Flags().String(evm.FlagEvmJWTSecret, "", "The JWT secret for authentication with the execution client")
+	cmd.Flags().String(evm.FlagEvmJWTSecretFile, "", "Path to file containing the JWT secret for authentication")
 	cmd.Flags().String(evm.FlagEvmGenesisHash, "", "Hash of the genesis block")
 	cmd.Flags().String(evm.FlagEvmFeeRecipient, "", "Address that will receive transaction fees")
-}
-
-var migrations = map[uint64]namespaces{
-	8130490: {
-		namespace:     "rollkit-headers",
-		dataNamespace: "rollkit-data",
-	},
-}
-
-// namespaces defines the namespace used for namespace migration
-type namespaces struct {
-	namespace     string
-	dataNamespace string
-}
-
-func (n namespaces) GetNamespace() string {
-	return n.namespace
-}
-
-func (n namespaces) GetDataNamespace() string {
-	if n.dataNamespace == "" {
-		return n.namespace
-	}
-
-	return n.dataNamespace
-}
-
-// namespaceMigrationDAAPI is wrapper around the da json rpc to use when handling namespace migrations
-type namespaceMigrationDAAPI struct {
-	jsonrpc.API
-	logger zerolog.Logger
-
-	migrations map[uint64]namespaces
-
-	currentNamespace     []byte
-	currentDataNamespace []byte
-}
-
-func newNamespaceMigrationDAAPI(api jsonrpc.API, logger zerolog.Logger, cfg config.Config, migrations map[uint64]namespaces) *namespaceMigrationDAAPI {
-	return &namespaceMigrationDAAPI{
-		API:                  api,
-		logger:               logger,
-		migrations:           migrations,
-		currentNamespace:     da.NamespaceFromString(cfg.DA.GetNamespace()).Bytes(),
-		currentDataNamespace: da.NamespaceFromString(cfg.DA.GetDataNamespace()).Bytes(),
-	}
-}
-
-// isDataNS returns true if the provided namespace matches the current data namespace
-// or any historical data namespace defined in migrations.
-func (api *namespaceMigrationDAAPI) isDataNS(ns []byte) bool {
-	if bytes.Equal(ns, api.currentDataNamespace) {
-		return true
-	}
-	for _, m := range api.migrations {
-		if bytes.Equal(ns, da.NamespaceFromString(m.GetDataNamespace()).Bytes()) {
-			return true
-		}
-	}
-	return false
-}
-
-// orderedMigrationNamespaces returns the migration namespaces in a deterministic order (by height asc).
-func (api *namespaceMigrationDAAPI) orderedMigrationNamespaces(isData bool) [][]byte {
-	if len(api.migrations) == 0 {
-		return nil
-	}
-	keys := make([]uint64, 0, len(api.migrations))
-	for k := range api.migrations {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-
-	out := make([][]byte, 0, len(keys))
-	for _, k := range keys {
-		m := api.migrations[k]
-		if isData {
-			out = append(out, da.NamespaceFromString(m.GetDataNamespace()).Bytes())
-		} else {
-			out = append(out, da.NamespaceFromString(m.GetNamespace()).Bytes())
-		}
-	}
-	return out
-}
-
-// findNamespaceForHeight determines the correct namespace to use for a given height.
-// Migrations are defined with "until" heights - the namespace is used until that height (inclusive).
-// For example, a migration at untilHeight=100 means the namespace is used for heights 0-100.
-func (api *namespaceMigrationDAAPI) findNamespaceForHeight(height uint64, isDataNamespace bool) []byte {
-	if len(api.migrations) == 0 {
-		if isDataNamespace {
-			return api.currentDataNamespace
-		}
-		return api.currentNamespace
-	}
-
-	// Find the migration with the lowest untilHeight that is >= requested height
-	var selectedUntilHeight uint64
-	var found bool
-	for untilHeight := range api.migrations {
-		if untilHeight >= height && (!found || untilHeight < selectedUntilHeight) {
-			selectedUntilHeight = untilHeight
-			found = true
-		}
-	}
-
-	// If no migration applies to this height, use current namespace
-	if !found {
-		if isDataNamespace {
-			return api.currentDataNamespace
-		}
-		return api.currentNamespace
-	}
-
-	// Use the namespace from the migration
-	migration := api.migrations[selectedUntilHeight]
-	if isDataNamespace {
-		return da.NamespaceFromString(migration.GetDataNamespace()).Bytes()
-	}
-	return da.NamespaceFromString(migration.GetNamespace()).Bytes()
-}
-
-// GetIDs returns IDs of all Blobs located in DA at given height.
-// This method handles namespace migrations by determining the correct namespace based on height
-func (api *namespaceMigrationDAAPI) GetIDs(ctx context.Context, height uint64, ns []byte) (*da.GetIDsResult, error) {
-	isDataNamespace := api.isDataNS(ns)
-	resolvedNS := api.findNamespaceForHeight(height, isDataNamespace)
-	api.logger.Debug().
-		Uint64("height", height).
-		Bool("isDataNS", isDataNamespace).
-		Str("ns", fmt.Sprintf("%x", resolvedNS)).
-		Msg("GetIDs using namespace for height")
-	return api.API.GetIDs(ctx, height, resolvedNS)
-}
-
-// Get retrieves blobs by their IDs from the DA layer.
-// This method tries the provided namespace first, then falls back to historical namespaces
-// from migrations if the blob is not found.
-func (api *namespaceMigrationDAAPI) Get(ctx context.Context, ids []da.ID, ns []byte) ([]da.Blob, error) {
-	// Try with the provided namespace first
-	blobs, err := api.API.Get(ctx, ids, ns)
-	if err == nil {
-		return blobs, nil
-	}
-
-	// If no migrations, return the original error
-	if len(api.migrations) == 0 {
-		return nil, err
-	}
-
-	// Determine if we're looking for data or header namespace
-	isDataNamespace := api.isDataNS(ns)
-
-	// Build deterministic fallback namespaces: current first, then migrations by height asc.
-	candidates := make([][]byte, 0, len(api.migrations)+1)
-	if isDataNamespace {
-		candidates = append(candidates, api.currentDataNamespace)
-	} else {
-		candidates = append(candidates, api.currentNamespace)
-	}
-	candidates = append(candidates, api.orderedMigrationNamespaces(isDataNamespace)...)
-
-	for _, candidate := range candidates {
-		// Skip if this is the same as what we already tried
-		if bytes.Equal(candidate, ns) {
-			continue
-		}
-		api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Get fallback try")
-		blobs, err = api.API.Get(ctx, ids, candidate)
-		if err == nil {
-			api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Get succeeded with fallback namespace")
-			return blobs, nil
-		}
-	}
-
-	// Return the last error if nothing worked
-	return nil, err
-}
-
-// GetProofs retrieves proofs for blobs by their IDs.
-// This method tries the provided namespace first, then falls back to historical namespaces.
-func (api *namespaceMigrationDAAPI) GetProofs(ctx context.Context, ids []da.ID, ns []byte) ([]da.Proof, error) {
-	// Try with the provided namespace first
-	proofs, err := api.API.GetProofs(ctx, ids, ns)
-	if err == nil {
-		return proofs, nil
-	}
-
-	// If no migrations, return the original error
-	if len(api.migrations) == 0 {
-		return nil, err
-	}
-
-	// Determine if we're looking for data or header namespace
-	isDataNamespace := api.isDataNS(ns)
-
-	// Build deterministic fallback namespaces: current first, then migrations by height asc.
-	candidates := make([][]byte, 0, len(api.migrations)+1)
-	if isDataNamespace {
-		candidates = append(candidates, api.currentDataNamespace)
-	} else {
-		candidates = append(candidates, api.currentNamespace)
-	}
-	candidates = append(candidates, api.orderedMigrationNamespaces(isDataNamespace)...)
-
-	for _, candidate := range candidates {
-		// Skip if this is the same as what we already tried
-		if bytes.Equal(candidate, ns) {
-			continue
-		}
-
-		api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("GetProofs fallback try")
-		proofs, err = api.API.GetProofs(ctx, ids, candidate)
-		if err == nil {
-			api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("GetProofs succeeded with fallback namespace")
-			return proofs, nil
-		}
-	}
-
-	// Return the last error if nothing worked
-	return nil, err
-}
-
-// Commit computes commitments for blobs.
-// This method doesn't rewrite namespaces as it's a local operation.
-func (api *namespaceMigrationDAAPI) Commit(ctx context.Context, blobs []da.Blob, ns []byte) ([]da.Commitment, error) {
-	return api.API.Commit(ctx, blobs, ns)
-}
-
-// Validate validates blob proofs.
-// This method tries the provided namespace first, then falls back to historical namespaces.
-func (api *namespaceMigrationDAAPI) Validate(ctx context.Context, ids []da.ID, proofs []da.Proof, ns []byte) ([]bool, error) {
-	// Try with the provided namespace first
-	results, err := api.API.Validate(ctx, ids, proofs, ns)
-	if err == nil {
-		return results, nil
-	}
-
-	// If no migrations, return the original error
-	if len(api.migrations) == 0 {
-		return nil, err
-	}
-
-	// Determine if we're looking for data or header namespace
-	isDataNamespace := api.isDataNS(ns)
-
-	// Build deterministic fallback namespaces: current first, then migrations by height asc.
-	candidates := make([][]byte, 0, len(api.migrations)+1)
-	if isDataNamespace {
-		candidates = append(candidates, api.currentDataNamespace)
-	} else {
-		candidates = append(candidates, api.currentNamespace)
-	}
-	candidates = append(candidates, api.orderedMigrationNamespaces(isDataNamespace)...)
-
-	for _, candidate := range candidates {
-		// Skip if this is the same as what we already tried
-		if bytes.Equal(candidate, ns) {
-			continue
-		}
-
-		api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Validate fallback try")
-		results, err = api.API.Validate(ctx, ids, proofs, candidate)
-		if err == nil {
-			api.logger.Debug().Str("ns", fmt.Sprintf("%x", candidate)).Msg("Validate succeeded with fallback namespace")
-			return results, nil
-		}
-	}
-
-	// Return the last error if nothing worked
-	return nil, err
-}
-
-// Submit submits blobs to the DA layer.
-// This method uses the current namespace (no migration rewriting) as it's for new submissions.
-func (api *namespaceMigrationDAAPI) Submit(ctx context.Context, blobs []da.Blob, gasPrice float64, ns []byte) ([]da.ID, error) {
-	return api.API.Submit(ctx, blobs, gasPrice, ns)
-}
-
-// SubmitWithOptions submits blobs to the DA layer with additional options.
-// This method uses the current namespace (no migration rewriting) as it's for new submissions.
-func (api *namespaceMigrationDAAPI) SubmitWithOptions(ctx context.Context, blobs []da.Blob, gasPrice float64, ns []byte, options []byte) ([]da.ID, error) {
-	return api.API.SubmitWithOptions(ctx, blobs, gasPrice, ns, options)
+	cmd.Flags().String(flagForceInclusionServer, "", "Address for force inclusion API server (e.g. 127.0.0.1:8547). If set, enables the server for direct DA submission")
 }
