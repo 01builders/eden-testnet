@@ -7,6 +7,7 @@ It adds the following features:
 - Changed default chain-id to `edennet-2`
 - Changed default app home directory to `~/.eden-testnet`
 - Changed command name to `eden-testnet`
+- Maintained backward compat for operators with deprecated flags (`--evnode.signer.passphrase` and `--evnode.evm.jwt-secret`)
 
 ## Considerations
 
