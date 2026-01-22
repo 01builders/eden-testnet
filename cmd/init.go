@@ -110,7 +110,3 @@ func InitCmd() *cobra.Command {
 
 	return initCmd
 }
-
-const (
-	flagBackwardPassphrase = rollconf.FlagPrefixEvnode + "signer.passphrase"
-)

@@ -213,22 +213,30 @@ func createExecutionClient(cmd *cobra.Command, db datastore.Batching, tracingEna
 		return nil, fmt.Errorf("failed to get '%s' flag: %w", evm.FlagEvmEngineURL, err)
 	}
 
+	var jwtSecret string
+	jwtSecret, err = cmd.Flags().GetString(flagBackwardJWTSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get '%s' flag: %w", flagBackwardJWTSecret, err)
+	}
+
 	// Get JWT secret file path
 	jwtSecretFile, err := cmd.Flags().GetString(evm.FlagEvmJWTSecretFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get '%s' flag: %w", evm.FlagEvmJWTSecretFile, err)
 	}
 
-	if jwtSecretFile == "" {
+	if jwtSecret == "" && jwtSecretFile == "" {
 		return nil, fmt.Errorf("JWT secret file must be provided via --evm.jwt-secret-file")
 	}
 
-	// Read JWT secret from file
-	secretBytes, err := os.ReadFile(jwtSecretFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read JWT secret from file '%s': %w", jwtSecretFile, err)
+	if jwtSecretFile != "" {
+		// Read JWT secret from file
+		secretBytes, err := os.ReadFile(jwtSecretFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read JWT secret from file '%s': %w", jwtSecretFile, err)
+		}
+		jwtSecret = string(bytes.TrimSpace(secretBytes))
 	}
-	jwtSecret := string(bytes.TrimSpace(secretBytes))
 
 	if jwtSecret == "" {
 		return nil, fmt.Errorf("JWT secret file '%s' is empty", jwtSecretFile)
@@ -258,4 +266,7 @@ func addFlags(cmd *cobra.Command) {
 	cmd.Flags().String(evm.FlagEvmGenesisHash, "", "Hash of the genesis block")
 	cmd.Flags().String(evm.FlagEvmFeeRecipient, "", "Address that will receive transaction fees")
 	cmd.Flags().String(flagForceInclusionServer, "", "Address for force inclusion API server (e.g. 127.0.0.1:8547). If set, enables the server for direct DA submission")
+
+	cmd.MarkFlagsMutuallyExclusive(flagBackwardJWTSecret, evm.FlagEvmJWTSecretFile)
+
 }
