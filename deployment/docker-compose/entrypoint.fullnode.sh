@@ -51,7 +51,7 @@ if [ ! -f "${CONFIG_HOME}/config/node_key.json" ]; then
 	# Build init flags array
 	init_flags="--home=${CONFIG_HOME}"
 
-	INIT_COMMAND="evm-single init ${init_flags}"
+	INIT_COMMAND="evm init ${init_flags}"
 	log "INIT" "Initializing fullnode with command: ${INIT_COMMAND}"
 	${INIT_COMMAND}
 	log "SUCCESS" "Fullnode initialization completed"
@@ -173,17 +173,17 @@ log "SUCCESS" "Configuration flags prepared successfully"
 # If no arguments passed, show help
 if [ $# -eq 0 ]; then
 	log "INFO" "No arguments provided, showing help"
-	exec evm-single
+	exec evm
 fi
 
 # If first argument is "start", apply default flags
 if [ "$1" = "start" ]; then
 	shift
-	log "INIT" "Starting EVM fullnode with command: evm-single start ${default_flags} $*"
+	log "INIT" "Starting EVM fullnode with command: evm start ${default_flags} $*"
 	log "INFO" "Fullnode is now starting up..."
-	eval "exec evm-single start ${default_flags} \"\$@\""
+	eval "exec evm start ${default_flags} \"\$@\""
 else
 	# For any other command/subcommand, pass through directly
-	log "INFO" "Executing command: evm-single $*"
-	exec evm-single "$@"
+	log "INFO" "Executing command: evm $*"
+	exec evm "$@"
 fi
