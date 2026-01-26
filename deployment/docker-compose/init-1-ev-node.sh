@@ -56,7 +56,7 @@ if [ ! -f "${CONFIG_HOME}/config/node_key.json" ]; then
 		init_flags="${init_flags} --evnode.node.aggregator=true --evnode.signer.passphrase_file ${EVM_SIGNER_PASSPHRASE_FILE}"
 	fi
 
-	INIT_COMMAND="evm-single init ${init_flags}"
+	INIT_COMMAND="evm init ${init_flags}"
 	log "INIT" "Initializing sequencer with command: ${INIT_COMMAND}"
 	${INIT_COMMAND}
 	log "SUCCESS" "Sequencer initialization completed"
