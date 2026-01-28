@@ -31,7 +31,7 @@ services:
         condition: service_completed_successfully
 
   init-1-ev-node:
-    image: &image ghcr.io/evstack/ev-node-evm:v1.0.0-beta.12
+    image: &image ghcr.io/evstack/ev-node-evm:v1.0.0-rc.1
     env_file: .env
     volumes:
       - ev-node-data:/root/.evm
