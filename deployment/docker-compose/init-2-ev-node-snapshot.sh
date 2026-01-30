@@ -18,6 +18,7 @@ log() {
 }
 
 EV_NODE_DATA_PATH=/root/.evm
+SNAPSHOT_CACHE_DIR=/snapshots
 BASE_URL=https://fsn1.your-objectstorage.com/6774130f-22e6-9d15-1103-96c8ec9b555b/private/testnet
 
 download_snapshot() {
@@ -35,6 +36,9 @@ if [[ ! -f ${EV_NODE_DATA_PATH}/_created_by_init_script ]]; then
 	apk add --no-cache lz4 aria2
 
 	log "INIT" "Starting ev-node snapshot download and configuration (Init Container 2)"
+
+	# Create snapshot cache directory if it doesn't exist
+	mkdir -p "${SNAPSHOT_CACHE_DIR}"
 
 	log "INFO" "Fetching snapshot information"
 	snapshot_metadata="${BASE_URL}/index.html"
@@ -60,27 +64,32 @@ if [[ ! -f ${EV_NODE_DATA_PATH}/_created_by_init_script ]]; then
 
 	log "SUCCESS" "Found snapshot: ${snapshot_name}"
 
-	# Download snapshot using curl
-	log "DOWNLOAD" "Downloading snapshot from: ${BASE_URL}/${snapshot_name}"
-	log "INFO" "This may take several minutes depending on your connection speed..."
+	# Check if snapshot exists in cache
+	cached_snapshot="${SNAPSHOT_CACHE_DIR}/${snapshot_name}"
+	if [[ -f "${cached_snapshot}" ]]; then
+		log "INFO" "Found cached snapshot: ${cached_snapshot}"
+		log "INFO" "Skipping download, using cached file"
+		snapshot_file="${cached_snapshot}"
+	else
+		# Download snapshot using curl
+		log "DOWNLOAD" "Downloading snapshot from: ${BASE_URL}/${snapshot_name}"
+		log "INFO" "This may take several minutes depending on your connection speed..."
 
-	if ! download_snapshot "${BASE_URL}/${snapshot_name}" /tmp/ev-node-snap.tar.lz4; then
-		log "ERROR" "Failed to download snapshot from ${BASE_URL}/${snapshot_name}"
-		exit 1
+		if ! download_snapshot "${BASE_URL}/${snapshot_name}" "${cached_snapshot}"; then
+			log "ERROR" "Failed to download snapshot from ${BASE_URL}/${snapshot_name}"
+			exit 1
+		fi
+		log "SUCCESS" "Snapshot downloaded successfully to ${cached_snapshot}"
+		snapshot_file="${cached_snapshot}"
 	fi
-	log "SUCCESS" "Snapshot downloaded successfully to /tmp/ev-node-snap.tar.lz4"
 
 	log "INFO" "Extracting snapshot archive"
 	# Use lz4 to decompress and pipe to tar (BusyBox compatible)
-	if ! lz4 -dc /tmp/ev-node-snap.tar.lz4 | tar -xvf - --strip-components=1 -C "${EV_NODE_DATA_PATH}"; then
+	if ! lz4 -dc "${snapshot_file}" | tar -xvf - --strip-components=1 -C "${EV_NODE_DATA_PATH}"; then
 		log "ERROR" "Failed to extract snapshot archive"
 		exit 1
 	fi
 	log "SUCCESS" "Snapshot extracted successfully"
-
-	log "INFO" "Cleaning up temporary files"
-	rm /tmp/ev-node-snap.tar.lz4
-	log "SUCCESS" "Temporary files cleaned up"
 
 	log "SUCCESS" "Init container 2 completed"
 	touch "${EV_NODE_DATA_PATH}/_created_by_init_script"

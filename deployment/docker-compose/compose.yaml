@@ -22,7 +22,8 @@ services:
     volumes:
       - ./ev-reth.genesis.json:/root/genesis.json:ro
       - jwttoken:/root/jwt:ro
-      - ev-reth-data:/root/reth
+      - ./data/ev-reth:/root/reth
+      - ./snapshots:/snapshots
       - ./init-1-ev-reth-snapshot.sh:/init-1-ev-reth-snapshot.sh
     entrypoint: [/bin/sh, /init-1-ev-reth-snapshot.sh]
     restart: "no"
@@ -34,7 +35,7 @@ services:
     image: &image ghcr.io/evstack/ev-node-evm-single:v1.0.0-beta.11
     env_file: .env
     volumes:
-      - ev-node-data:/root/.evm
+      - ./data/ev-node:/root/.evm
       - ./ev-node.genesis.json:/volumes/sequencer_export/genesis.json:ro
       - ./ev-reth.genesis.json:/root/genesis.json:ro
       - jwttoken:/root/jwt:ro
@@ -46,10 +47,11 @@ services:
     image: *alpine
     env_file: .env
     volumes:
-      - ev-node-data:/root/.evm
+      - ./data/ev-node:/root/.evm
       - ./ev-node.genesis.json:/volumes/sequencer_export/genesis.json:ro
       - ./ev-reth.genesis.json:/root/genesis.json:ro
       - jwttoken:/root/jwt:ro
+      - ./snapshots:/snapshots
       - ./init-2-ev-node-snapshot.sh:/init-2-ev-node-snapshot.sh
     entrypoint: [/bin/bash, /init-2-ev-node-snapshot.sh]
     restart: "no"
@@ -70,7 +72,7 @@ services:
     volumes:
       - ./ev-reth.genesis.json:/root/genesis.json:ro
       - jwttoken:/root/jwt:ro
-      - ev-reth-data:/root/reth
+      - ./data/ev-reth:/root/reth
     entrypoint: /bin/sh -c
     command:
       - |
@@ -129,7 +131,7 @@ services:
 #    volumes:
 #      - ./ev-reth.genesis.json:/root/genesis.json:ro
 #      - jwttoken:/root/jwt:ro
-#      - ev-reth-2-data:/root/reth
+#      - ./data/ev-reth-2:/root/reth
 #    entrypoint: /bin/sh -c
 #    command:
 #      - |
@@ -186,11 +188,11 @@ services:
       init-2-snapshot-ev-node:
         condition: service_completed_successfully
     volumes:
-      - ev-node-data:/root/.evm
+      - ./data/ev-node:/root/.evm
       - ./ev-node.genesis.json:/volumes/sequencer_export/genesis.json:ro
       - ./ev-reth.genesis.json:/root/genesis.json:ro
       - jwttoken:/root/jwt:ro
-      - ./entrypoint.fullnode.sh:/usr/bin/entrypoint_main.sh
+      - ./entrypoint.fullnode_main.sh:/usr/bin/entrypoint.sh
     command:
       - start
       - --evnode.rpc.address=0.0.0.0:${EV_NODE_RPC_PORT}
@@ -198,7 +200,7 @@ services:
       - --evnode.instrumentation.prometheus_listen_addr=:${EV_NODE_PROMETHEUS_PORT}
       - --evnode.p2p.listen_address=/ip4/0.0.0.0/tcp/7676
       - --evnode.p2p.peers=/ip4/157.180.53.133/tcp/7686/p2p/12D3KooWMCfKiRXrd3o1m8TBDknmjZFqnmgFpP6gfjhBBVwnuCXK/p2p/12D3KooWMCfKiRXrd3o1m8TBDknmjZFqnmgFpP6gfjhBBVwnuCXK,/ip4/157.180.53.70/tcp/7686/p2p/12D3KooWEpRjbVZuQVZNxaifZDZ3dGLV6Dj7fT5Eox95PQhgWsJ7/p2p/12D3KooWEpRjbVZuQVZNxaifZDZ3dGLV6Dj7fT5Eox95PQhgWsJ7
-      - --evnode.node.stop_height=62795560
+      - --evnode.node.stop_height=62038057
       - --evm.jwt-secret-file=/root/jwt/jwt.hex
       - --evnode.log.level=debug
     environment:
@@ -227,7 +229,7 @@ services:
 #      init-2-snapshot-ev-node:
 #        condition: service_completed_successfully
 #    volumes:
-#      - ev-node-2-data:/root/.evm
+#      - ./data/ev-node-2:/root/.evm
 #      - ./ev-node.genesis.json:/volumes/sequencer_export/genesis.json:ro
 #      - ./ev-reth.genesis.json:/root/genesis.json:ro
 #      - jwttoken:/root/jwt:ro
@@ -255,13 +257,5 @@ services:
 #      start_period: 30s
 
 volumes:
-  ev-node-data:
-    driver: local
-  ev-reth-data:
-    driver: local
-#  ev-node-2-data:
-#    driver: local
-#  ev-reth-2-data:
-#    driver: local
   jwttoken:
     driver: local
