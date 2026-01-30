@@ -101,3 +101,14 @@ docker compose logs -f
 docker compose logs -f ev-node
 docker compose logs -f ev-reth
 ```
+
+## Second Full Node + ev-reth
+
+The `ev-node-2` service runs as a full node with its own `ev-reth-2` instance and syncs from `ev-node` over P2P. Note: full nodes still require a working DA endpoint.
+
+1) Start the stack and follow logs (the peer address is discovered via `evm net-info` on startup):
+
+```bash
+docker compose up -d ev-node-2
+docker compose logs -f ev-node-2
+```

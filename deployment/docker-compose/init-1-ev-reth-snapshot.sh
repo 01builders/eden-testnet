@@ -20,8 +20,19 @@ log() {
 EV_RETH_DATA_PATH=/root/reth
 BASE_URL=https://fsn1.your-objectstorage.com/6774130f-22e6-9d15-1103-96c8ec9b555b/private/testnet
 
+download_snapshot() {
+	url="$1"
+	dest="$2"
+
+	if command -v aria2c >/dev/null 2>&1; then
+		aria2c -x 8 -s 8 -k 1M -c -o "$(basename "${dest}")" -d "$(dirname "${dest}")" "${url}"
+	else
+		curl -fL --progress-bar -o "${dest}" "${url}"
+	fi
+}
+
 if [[ ! -f ${EV_RETH_DATA_PATH}/_created_by_init_script ]]; then
-	apk add --no-cache lz4
+	apk add --no-cache lz4 aria2
 
 	log "INIT" "Starting ev-reth snapshot download and configuration (Init Container 2)"
 
@@ -53,7 +64,7 @@ if [[ ! -f ${EV_RETH_DATA_PATH}/_created_by_init_script ]]; then
 	log "DOWNLOAD" "Downloading snapshot from: ${BASE_URL}/${snapshot_name}"
 	log "INFO" "This may take several minutes depending on your connection speed..."
 
-	if ! curl -fL --progress-bar -o /tmp/ev-reth-snap.tar.lz4 "${BASE_URL}/${snapshot_name}"; then
+	if ! download_snapshot "${BASE_URL}/${snapshot_name}" /tmp/ev-reth-snap.tar.lz4; then
 		log "ERROR" "Failed to download snapshot from ${BASE_URL}/${snapshot_name}"
 		exit 1
 	fi
